@@ -1,17 +1,23 @@
 export const colors = {
   primary: '#176B87',
   primaryMuted: '#E6F3F7',
+
   background: '#F6F8FA',
   surface: '#FFFFFF',
   surfaceMuted: '#EEF2F5',
+
   text: '#17212B',
   textSecondary: '#53616D',
   textMuted: '#77838D',
+
   border: '#D8E0E6',
+
   safe: '#247A4A',
   safeBackground: '#E7F5EC',
+
   warning: '#A96500',
   warningBackground: '#FFF3DC',
+
   danger: '#B42318',
   dangerBackground: '#FDECEA',
 } as const;
@@ -39,6 +45,7 @@ export const typography = {
   title: 20,
   heading: 24,
   display: 32,
+  metric: 26,
 } as const;
 
 export const theme = {

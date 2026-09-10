@@ -32,11 +32,12 @@ const styles = StyleSheet.create({
     fontSize: typography.caption,
     fontWeight: '600',
   },
-  value: {
-    color: colors.text,
-    fontSize: typography.display,
-    fontWeight: '700',
-  },
+value: {
+  color: colors.text,
+  fontSize: typography.metric,
+  fontWeight: '700',
+  letterSpacing: -0.5,
+},
   detail: {
     color: colors.textMuted,
     fontSize: typography.caption,
