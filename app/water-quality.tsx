@@ -28,7 +28,8 @@ import {
 type GraphParameter =
   | 'pH'
   | 'Turbidity'
-  | 'Temperature';
+  | 'Temperature'
+  | 'TDS';
 
 type TimeFilter =
   | '1H'
@@ -40,6 +41,7 @@ const graphParameters: GraphParameter[] = [
   'pH',
   'Turbidity',
   'Temperature',
+  'TDS',
 ];
 
 const filters: TimeFilter[] = [
@@ -63,6 +65,11 @@ const parameterInfo = {
   Temperature: {
     unit: '°C',
     range: '20 – 35 °C',
+  },
+
+  TDS: {
+    unit: 'ppm',
+    range: '0 – 500 ppm',
   },
 };
 
@@ -269,6 +276,20 @@ export default function WaterQualityScreen() {
           />
 
           <ReadingRow
+            label="TDS"
+            value={
+              currentReading && Number.isFinite(currentReading.tds)
+                ? currentReading.tds.toFixed(1)
+                : '—'
+            }
+            unit="ppm"
+            status={getParameterStatus(
+              currentReading,
+              'TDS',
+            )}
+          />
+
+          <ReadingRow
             label="Temperature"
             value={
               currentReading
@@ -302,7 +323,7 @@ export default function WaterQualityScreen() {
               </Text>
 
               <Text style={styles.overallCardSubtitle}>
-                Based on pH, turbidity, and temperature
+                Based on pH, turbidity, temperature, and TDS
               </Text>
             </View>
 
@@ -382,7 +403,7 @@ export default function WaterQualityScreen() {
             <View style={styles.chartHeader}>
               <View style={styles.currentValue}>
                 <Text style={styles.chartValue}>
-                  {currentValue !== null
+                  {currentValue !== null && Number.isFinite(currentValue)
                     ? formatParameterValue(
                         currentValue,
                         selectedParameter,
@@ -478,7 +499,7 @@ export default function WaterQualityScreen() {
 
             <View style={styles.summaryValueRow}>
               <Text style={styles.summaryValue}>
-                {currentValue !== null
+                {currentValue !== null && Number.isFinite(currentValue)
                   ? formatParameterValue(
                       currentValue,
                       selectedParameter,
@@ -677,6 +698,10 @@ function getParameterValue(
     return reading.turbidity;
   }
 
+  if (parameter === 'TDS') {
+    return reading.tds;
+  }
+
   return reading.temperature;
 }
 
@@ -718,6 +743,10 @@ function getOverallWaterStatus(
       'Temperature',
     ),
   ];
+
+  if (Number.isFinite(reading.tds)) {
+    statuses.push(getParameterStatus(reading, 'TDS'));
+  }
 
   if (statuses.includes('CRITICAL')) {
     return 'CRITICAL';
@@ -792,19 +821,28 @@ function getOverallStatusMessage(
  * NORMAL   = 20 - 35 °C
  * WARNING  = 15 - 20 OR 35 - 40 °C
  * CRITICAL = below 15 OR above 40 °C
+ *
+ * TDS (app alert bands, ppm):
+ * NORMAL   = 0 - 500
+ * WARNING  = above 500 to 1000
+ * CRITICAL = above 1000
  */
 function getParameterStatus(
   reading: RealtimeWaterReading | null,
   parameter: GraphParameter,
 ): string {
   if (!reading) {
-    return 'NORMAL';
+    return parameter === 'TDS' ? 'WAITING' : 'NORMAL';
   }
 
   const value = getParameterValue(
     reading,
     parameter,
   );
+
+  if (parameter === 'TDS' && !Number.isFinite(value)) {
+    return 'WAITING';
+  }
 
   if (parameter === 'pH') {
     if (value < 6 || value > 9) {
@@ -827,6 +865,13 @@ function getParameterStatus(
       return 'WARNING';
     }
 
+    return 'NORMAL';
+  }
+
+  if (parameter === 'TDS') {
+    if (!Number.isFinite(value)) return 'WAITING';
+    if (value > 1000) return 'CRITICAL';
+    if (value > 500) return 'WARNING';
     return 'NORMAL';
   }
 
@@ -932,6 +977,10 @@ function SimpleLineChart({
 }) {
   const [chartWidth, setChartWidth] =
     useState(0);
+
+  readings = readings.filter((reading) =>
+    Number.isFinite(getParameterValue(reading, parameter)),
+  );
 
   const values = readings.map(
     (reading) =>

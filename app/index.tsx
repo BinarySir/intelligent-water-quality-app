@@ -82,19 +82,17 @@ export default function OverviewScreen() {
    * SENSOR HEALTH
    * --------------------------------------------------
    *
-   * We now monitor 3 water-quality sensors:
-   *
-   * - pH
-   * - Turbidity
-   * - Temperature
-   *
-   * TDS/TDP is no longer used.
+   * We now monitor 4 water-quality sensors:
+   * - pH, turbidity, temperature, and TDS
    */
   function getSensorHealthLabel(
     ph: number,
     turbidity: number,
     temperature: number,
+    tds: number,
   ): string {
+    if (!Number.isFinite(tds)) return '3/4 DATA';
+
     const phStatus = getParameterStatus(
       ph,
       'pH',
@@ -112,10 +110,13 @@ export default function OverviewScreen() {
         'Temperature',
       );
 
+    const tdsStatus = getParameterStatus(tds, 'TDS');
+
     if (
       phStatus === 'CRITICAL' ||
       turbidityStatus === 'CRITICAL' ||
-      temperatureStatus === 'CRITICAL'
+      temperatureStatus === 'CRITICAL' ||
+      tdsStatus === 'CRITICAL'
     ) {
       return 'FAULT';
     }
@@ -123,19 +124,23 @@ export default function OverviewScreen() {
     if (
       phStatus === 'WARNING' ||
       turbidityStatus === 'WARNING' ||
-      temperatureStatus === 'WARNING'
+      temperatureStatus === 'WARNING' ||
+      tdsStatus === 'WARNING'
     ) {
       return 'WARNING';
     }
 
-    return '3/3 OK';
+    return '4/4 OK';
   }
 
   function getSensorHealthTone(
     ph: number,
     turbidity: number,
     temperature: number,
+    tds: number,
   ) {
+    if (!Number.isFinite(tds)) return 'neutral' as const;
+
     const phStatus = getParameterStatus(
       ph,
       'pH',
@@ -153,10 +158,13 @@ export default function OverviewScreen() {
         'Temperature',
       );
 
+    const tdsStatus = getParameterStatus(tds, 'TDS');
+
     if (
       phStatus === 'CRITICAL' ||
       turbidityStatus === 'CRITICAL' ||
-      temperatureStatus === 'CRITICAL'
+      temperatureStatus === 'CRITICAL' ||
+      tdsStatus === 'CRITICAL'
     ) {
       return 'danger' as const;
     }
@@ -164,7 +172,8 @@ export default function OverviewScreen() {
     if (
       phStatus === 'WARNING' ||
       turbidityStatus === 'WARNING' ||
-      temperatureStatus === 'WARNING'
+      temperatureStatus === 'WARNING' ||
+      tdsStatus === 'WARNING'
     ) {
       return 'warning' as const;
     }
@@ -334,6 +343,10 @@ export default function OverviewScreen() {
       'Temperature',
     );
 
+  const tdsStatus = realtimeReading && Number.isFinite(realtimeReading.tds)
+    ? getParameterStatus(realtimeReading.tds, 'TDS')
+    : 'WAITING';
+
   /*
    * --------------------------------------------------
    * OVERALL WATER STATUS
@@ -346,6 +359,9 @@ export default function OverviewScreen() {
       phStatus,
       turbidityStatus,
       temperatureStatus,
+      realtimeReading && Number.isFinite(realtimeReading.tds)
+        ? tdsStatus as ParameterStatus
+        : null,
     );
 
   /*
@@ -392,6 +408,7 @@ export default function OverviewScreen() {
         realtimeReading.ph,
         realtimeReading.turbidity,
         realtimeReading.temperature,
+        realtimeReading.tds,
       )
     : 'WAITING';
 
@@ -409,6 +426,7 @@ export default function OverviewScreen() {
         realtimeReading.ph,
         realtimeReading.turbidity,
         realtimeReading.temperature,
+        realtimeReading.tds,
       )
     : 'neutral';
 
@@ -509,35 +527,8 @@ export default function OverviewScreen() {
           />
         </View>
 
-        {/* Current readings */}
-        <SectionHeader
-          title="Current Readings"
-          subtitle="Latest sensor values"
-        />
-
-        {/*
-         * --------------------------------------------------
-         * CURRENT READINGS GRID
-         * --------------------------------------------------
-         *
-         * Previously:
-         *
-         *   pH          Turbidity
-         *   empty       Temperature
-         *
-         * This caused the obvious empty space.
-         *
-         * Now:
-         *
-         *   pH          Turbidity
-         *   Temperature (full width)
-         *
-         * This keeps the cards balanced and removes the
-         * unused area.
-         */}
+        {/* Current readings: 2 columns × 2 rows */}
         <View style={styles.metricsGrid}>
-
-          {/* pH */}
           <View style={styles.metricHalf}>
             <MetricCard
               label="pH"
@@ -546,7 +537,6 @@ export default function OverviewScreen() {
             />
           </View>
 
-          {/* Turbidity */}
           <View style={styles.metricHalf}>
             <MetricCard
               label="Turbidity"
@@ -555,15 +545,23 @@ export default function OverviewScreen() {
             />
           </View>
 
-          {/* Temperature */}
-          <View style={styles.metricFull}>
+          <View style={styles.metricHalf}>
+            <MetricCard
+              label="TDS"
+              value={realtimeReading && Number.isFinite(realtimeReading.tds)
+                ? `${realtimeReading.tds.toFixed(1)} ppm`
+                : '—'}
+              detail={tdsStatus}
+            />
+          </View>
+
+          <View style={styles.metricHalf}>
             <MetricCard
               label="Temperature"
               value={`${reading.temperature.toFixed(1)} °C`}
               detail={temperatureStatus}
             />
           </View>
-
         </View>
 
         {/* Latest alert */}
@@ -791,7 +789,8 @@ function getParameterStatus(
   parameter:
     | 'pH'
     | 'Turbidity'
-    | 'Temperature',
+    | 'Temperature'
+    | 'TDS',
 ): ParameterStatus {
   /*
    * pH
@@ -831,6 +830,13 @@ function getParameterStatus(
     return 'NORMAL';
   }
 
+  if (parameter === 'TDS') {
+    if (!Number.isFinite(value)) return 'NORMAL';
+    if (value > 1000) return 'CRITICAL';
+    if (value > 500) return 'WARNING';
+    return 'NORMAL';
+  }
+
   /*
    * Temperature
    *
@@ -853,12 +859,14 @@ function getOverallWaterStatus(
   phStatus: ParameterStatus,
   turbidityStatus: ParameterStatus,
   temperatureStatus: ParameterStatus,
+  tdsStatus: ParameterStatus | null,
 ): WaterStatus {
-  const statuses = [
+  const statuses: ParameterStatus[] = [
     phStatus,
     turbidityStatus,
     temperatureStatus,
   ];
+  if (tdsStatus) statuses.push(tdsStatus);
 
   if (statuses.includes('CRITICAL')) {
     return 'critical';
@@ -1092,8 +1100,9 @@ const styles = StyleSheet.create({
   },
 
   metricHalf: {
-    flexBasis: 0,
-    flexGrow: 1,
+    flexBasis: '48%',
+    flexGrow: 0,
+    flexShrink: 0,
     minWidth: 0,
   },
 
@@ -1264,3 +1273,5 @@ const styles = StyleSheet.create({
     fontSize: typography.caption,
   },
 });
+
+

@@ -5,15 +5,10 @@ import {
 } from 'firebase/database';
 
 import { realtimeDb } from './firebase';
-
-import type {
-  RealtimeWaterReading,
-} from './realtimeWaterReadings';
+import type { RealtimeWaterReading } from './realtimeWaterReadings';
 
 export function subscribeToWaterHistory(
-  onUpdate: (
-    readings: RealtimeWaterReading[],
-  ) => void,
+  onUpdate: (readings: RealtimeWaterReading[]) => void,
   onError: (error: Error) => void,
 ): Unsubscribe {
   const historyRef = ref(
@@ -33,15 +28,9 @@ export function subscribeToWaterHistory(
 
       snapshot.forEach((child) => {
         const data = child.val();
+        if (!data) return;
 
-        if (!data) {
-          return;
-        }
-
-        const rawAIStatus = String(
-          data.ai_status ?? 'normal',
-        ).toLowerCase();
-
+        const rawAIStatus = String(data.ai_status ?? 'normal').toLowerCase();
         const aiStatus =
           rawAIStatus === 'critical'
             ? 'critical'
@@ -49,39 +38,19 @@ export function subscribeToWaterHistory(
               ? 'warning'
               : 'normal';
 
-        const sendTime = Number(
-          data.sendTimeMs ?? 0,
-        );
-
         readings.push({
           ph: Number(data.ph ?? 0),
-
-          turbidity: Number(
-            data.turbidity_ntu ?? 0,
-          ),
-
-          temperature: Number(
-            data.temperature ?? 0,
-          ),
-
+          turbidity: Number(data.turbidity_ntu ?? 0),
+          temperature: Number(data.temperature ?? 0),
+          tds: data.tds == null ? Number.NaN : Number(data.tds),
           aiStatus,
-
-          pumpState: String(
-            data.pump_state ?? 'Unknown',
-          ),
-
-          sendTime,
+          pumpState: String(data.pump_state ?? 'Unknown'),
+          sendTime: Number(data.sendTimeMs ?? data.sendTime ?? 0),
         });
       });
 
-      /*
-       * Oldest → newest
-       */
-      readings.sort(
-        (a, b) =>
-          a.sendTime - b.sendTime,
-      );
-
+      // Oldest → newest, matching the existing graph behavior.
+      readings.sort((a, b) => a.sendTime - b.sendTime);
       onUpdate(readings);
     },
     (error) => {

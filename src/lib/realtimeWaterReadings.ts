@@ -10,6 +10,8 @@ export type RealtimeWaterReading = {
   ph: number;
   turbidity: number;
   temperature: number;
+  /** TDS in ppm; NaN means this record did not contain a TDS value. */
+  tds: number;
   aiStatus: 'normal' | 'warning' | 'critical';
   pumpState: string;
   sendTime: number;
@@ -33,10 +35,7 @@ export function subscribeToRealtimeWaterReading(
       }
 
       const data = snapshot.val();
-
-      const aiStatus =
-        String(data.ai_status ?? '').toLowerCase();
-
+      const aiStatus = String(data.ai_status ?? '').toLowerCase();
       const normalizedAIStatus =
         aiStatus === 'critical'
           ? 'critical'
@@ -46,28 +45,12 @@ export function subscribeToRealtimeWaterReading(
 
       onUpdate({
         ph: Number(data.ph ?? 0),
-
-        // Firebase uses "turbidity"
-        turbidity: Number(
-          data.turbidity_ntu ?? 0,
-        ),
-
-        temperature: Number(
-          data.temperature ?? 0,
-        ),
-
+        turbidity: Number(data.turbidity_ntu ?? 0),
+        temperature: Number(data.temperature ?? 0),
+        tds: data.tds == null ? Number.NaN : Number(data.tds),
         aiStatus: normalizedAIStatus,
-
-        pumpState: String(
-          data.pump_state ?? 'unknown',
-        ),
-
-        // Firebase uses "sendTimeMs"
-        sendTime: Number(
-  data.sendTimeMs ??
-  data.sendTime ??
-  0,
-),
+        pumpState: String(data.pump_state ?? 'unknown'),
+        sendTime: Number(data.sendTimeMs ?? data.sendTime ?? 0),
       });
     },
     (error) => {
